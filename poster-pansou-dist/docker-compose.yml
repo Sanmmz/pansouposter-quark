@@ -5,7 +5,7 @@
 services:
 poster-pansou:
     # 镜像名与 install.sh 中 docker load 的 tag 保持一致
-image:Sanmmz:pansouposter-quark
+image:Sanmmz:poster-pansou-disk
 container_name:poster-pansou
 restart:unless-stopped
 
