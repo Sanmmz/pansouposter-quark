@@ -5,7 +5,7 @@
 services:
 poster-pansou:
     # 镜像名与 install.sh 中 docker load 的 tag 保持一致
-image:Sanmmz:poster-pansou-disk
+image: ${IMAGE_NAME:-poster-pansou}:${IMAGE_TAG:-0.43.11-r232-member-gate-no-flash}
 container_name:poster-pansou
 restart:unless-stopped
 
