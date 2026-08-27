@@ -1,41 +1,41 @@
 # poster-pansou 公开分发版 Docker Compose
 # 注意：本仓库不含源码。镜像由维护者通过 Dockerfile.dist 在私有源仓库构建，
-#       通过 GitHub Releases 分发。本 compose 文件假设镜像已通过 install.sh 加载。
+# 通过 GitHub Releases 分发。本 compose 文件假设镜像已通过 install.sh 加载。
 
 services:
-  poster-pansou:
+poster-pansou:
     # 镜像名与 install.sh 中 docker load 的 tag 保持一致
-    image: ${IMAGE_NAME:-poster-pansou}:${IMAGE_TAG:-0.43.11-r232-member-gate-no-flash}
-    container_name: poster-pansou
-    restart: unless-stopped
+image:Sanmmz:pansouposter-quark
+container_name:poster-pansou
+restart:unless-stopped
 
-    ports:
-      - "${HOST_PORT:-17001}:17001"
-      - "${HOST_GATEWAY_PORT:-8024}:8024"
+ports:
+-\"${HOST_PORT:-17001}:17001\"
+-\"${HOST_GATEWAY_PORT:-8024}:8024\"
 
-    volumes:
+volumes:
       # 数据持久化：member 激活记录、TMDB 缓存、配置等
-      - ./db:/app/db
+-./db:/app/db
       # 仅 Linux 宿主（fnOS / 群晖 / Ubuntu 等）：把宿主机真实 machine-id 挂进
       # 容器，作为设备指纹主成分。Windows Docker 宿主无 /etc/machine-id，
       # 可注释掉下面这一行（设备指纹退化为容器内生成，换宿主机可能不会重验）。
-      - /etc/machine-id:/etc/host-machine-id:ro
+-/etc/machine-id:/etc/host-machine-id:ro
 
     # 环境变量（按需修改；也可在 .env 文件中配置）
-    environment:
-      HOST: 0.0.0.0
-      PORT: "17001"
-      GATEWAY_PORT: "8024"
-      DB_DIR: /app/db
+environment:
+HOST:0.0.0.0
+PORT:\"17001\"
+GATEWAY_PORT:\"8024\"
+DB_DIR:/app/db
       # 中央鉴权（可选）：指向你的 member-codes 服务
       # MEMBER_AUTH_URL: https://mc.your-domain.com:9999
-      # MEMBER_AUTH_TOKEN: ""
-      # 后台复核：默认关闭，关闭后"换设备才弹回"生效
-      MEMBER_AUTH_REVALIDATE: "0"
-      MEMBER_HOST_ID_PATH: /etc/host-machine-id
+      # MEMBER_AUTH_TOKEN: \"\"
+      # 后台复核：默认关闭，关闭后“换设备才弹回”生效
+MEMBER_AUTH_REVALIDATE:\"0\"
+MEMBER_HOST_ID_PATH:/etc/host-machine-id
 
     # 健康检查：每 30s 探活，连续 3 次失败则重启
-    healthcheck:
+healthcheck:
       test: ["CMD", "python3", "-c",
              "import urllib.request,sys; r=urllib.request.urlopen('http://127.0.0.1:17001/api/health',timeout=3); sys.exit(0 if r.status==200 else 1)"]
       interval: 30s
