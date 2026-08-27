@@ -1,0 +1,93 @@
+# poster-pansou 维护者发布流水线
+#
+# 仓库布局（你的实际配置）：
+#   公开仓库：Sanmmz/pansouposter-quark    （本仓库，仅含 Dockerfile.dist 等）
+#   私有仓库：Sanmmz/pansouposter-quark-source （源码，含 server.py）
+#
+# 触发方式（在私有源仓库 Sanmmz/pansouposter-quark-source 操作）：
+#   git tag v0.43.12-r233-your-new-version
+#   git push origin v0.43.12-r233-your-new-version
+#
+# 流水线工作（在公开仓库触发，发布新版本）：
+#   1. checkout 私有源 Sanmmz/pansouposter-quark-source，拿到 server.py / static/ / config/
+#   2. multi-stage docker build（源码不进入最终镜像）
+#   3. docker save 成 tarball
+#   4. 在 Sanmmz/pansouposter-quark 创建 GitHub Release，上传 tarball
+#
+# 一次性配置：
+#   - 在 Sanmmz/pansouposter-quark 仓库 Settings -> Secrets -> Actions 添加 PAT_TOKEN
+#   - PAT 需勾选 Sanmmz/pansouposter-quark-source 私有仓库的读权限
+
+name: build-and-release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout dist repo
+        uses: actions/checkout@v4
+
+      - name: Checkout private source repo
+        uses: actions/checkout@v4
+        with:
+          repository: Sanmmz/pansouposter-quark-source
+          token: ${{ secrets.PAT_TOKEN }}
+          path: source
+          fetch-depth: 1
+
+      - name: Copy Dockerfile.dist into source
+        run: cp Dockerfile.dist source/Dockerfile
+
+      - name: Build Docker image
+        run: |
+          cd source
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          echo "Building image poster-pansou:${VERSION}"
+          docker build \
+            -f Dockerfile \
+            -t "poster-pansou:${VERSION}" \
+            --build-arg APP_VERSION="${VERSION}" \
+            .
+
+      - name: Export image tarball
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          TARBALL="poster-pansou-${VERSION}-docker.tar"
+          docker save -o "${TARBALL}" "poster-pansou:${VERSION}"
+          ls -lh "${TARBALL}"
+          echo "TARBALL=${TARBALL}" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: ${{ env.TARBALL }}
+          generate_release_notes: true
+          body: |
+            ## Docker 镜像
+
+            用户安装命令：
+            ```
+            bash install.sh
+            ```
+
+            镜像 tag：`poster-pansou:${{ github.ref_name }}`（去掉前缀 v）
+
+            验证 tarball 不含源码：
+            ```
+            tar -tf poster-pansou-*.tar | grep -E 'app/server\.py$' && echo FAIL || echo OK
+            ```
