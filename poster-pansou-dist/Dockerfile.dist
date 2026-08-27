@@ -1,0 +1,60 @@
+# poster-pansou 多阶段构建（公开分发版）
+#
+# 用途：维护者在本仓库（或私有源仓库）的 Docker build 上下文里构建
+#       最终不含 .py 源码的镜像。Dockerfile.dist 单独放在 poster-pansou-dist
+#       仓库里，配合 release.yml 在私有源仓库 checkout 后被 cp 进去执行。
+#
+# 构建（在 poster-pansou 私有源仓库根目录）：
+#   docker build -f Dockerfile -t poster-pansou:<VER> \
+#                --build-arg APP_VERSION=<VER> .
+
+# ----------------------------------------------------------------------------
+# 阶段 1：编译 server.py 为 .pyc，删除源文件
+# ----------------------------------------------------------------------------
+FROM python:3.12-slim AS builder
+
+# 编译期参数：APP_VERSION 必须与 release tag 一致（嵌入 health 端点便于诊断）
+ARG APP_VERSION=unknown
+ENV APP_VERSION=${APP_VERSION}
+
+WORKDIR /build
+
+# 复制源码（来自私有源仓库的 build context）
+COPY server.py  /build/server.py
+COPY static/    /build/static/
+COPY config/    /build/config/
+
+# 编译为 .pyc（编译产物是字节码，比源码更不易阅读；不是加密，只是双保险）
+RUN python -m compileall -b /build/server.py \
+ && rm -f /build/server.py \
+ && ls -la /build/
+
+# ----------------------------------------------------------------------------
+# 阶段 2：极简运行时，只含 .pyc + static + config
+# ----------------------------------------------------------------------------
+FROM python:3.12-slim
+
+LABEL org.opencontainers.image.title="poster-pansou"
+LABEL org.opencontainers.image.source="https://github.com/Sanmmz/pansouposter-quark"
+LABEL org.opencontainers.image.licenses="Proprietary"
+
+WORKDIR /app
+
+# 仅复制阶段 1 编译后的产物（不含 server.py 源）
+COPY --from=builder /build/ /app/
+
+# 运行时目录
+RUN mkdir -p /app/db
+
+ENV HOST=0.0.0.0 \
+    PORT=17001 \
+    GATEWAY_PORT=8024 \
+    DB_DIR=/app/db \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+VOLUME ["/app/db"]
+EXPOSE 17001 8024
+
+# 直接运行编译后的字节码（无 server.py 源文件）
+CMD ["python", "/app/server.pyc"]
